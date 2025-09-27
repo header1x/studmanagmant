@@ -1,7 +1,6 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from functools import reduce
-
 import uvicorn
 
 app = FastAPI()
@@ -20,39 +19,40 @@ class Dish(BaseModel):
     name: str = Field(min_length=2, max_length=20)
     price: int = Field(ge=1, le=10**4)
 
-# 2. Menu sorted by alphabet
+# 1. Menu sorted by alphabet
 @app.get('/menu/alphabet', summary='1️⃣ Menu sorted by alphabet', tags=['for user'])
 def get_menu_alphabet():
     return [{'name': k, 'price': p} for k, p in sorted(menu.items(), key=lambda x: x[0])]
 
-# 3. Menu sorted by price
+# 2. Menu sorted by price
 @app.get('/menu/price', summary='2️⃣ Menu sorted by price', tags=['for user'])
 def get_menu_price():
     return [{'name': k, 'price': p} for k, p in sorted(menu.items(), key=lambda x: x[1])]
 
-# 4. Average price
+# 3. Average price
 @app.get('/menu/avrage', summary='3️⃣ Average price of dishes', tags=['for user'])
 def get_avrg_price():
     avrg_price = sum(map(lambda x: x[1], menu.items())) // len(menu)
     return {'msg': f'Average price is {avrg_price}'}
 
-# 5. Add or update dish (admin only)
+# 4. Add or update dish (admin only)
 @app.post('/menu', summary='4️⃣ Add or update dish🍴', tags=['for admin'])
 def add_or_update_dish(d: Dish, password: str):
     if password != "admin":
         raise HTTPException(status_code=403, detail="Invalid admin password")
     
+    is_update = d.name in menu
     menu.update({d.name: (lambda x: x)(d.price)})
-    msg = f"Dish '{d.name}' added with price {d.price}" if d.name not in menu else f"Dish '{d.name}' price updated to {d.price}"
+    msg = f"Dish '{d.name}' price updated to {d.price}" if is_update else f"Dish '{d.name}' added with price {d.price}"
     return {'ok': True, 'msg': msg}
 
-# 6. Filter dishes cheaper than N
+# 5. Filter dishes cheaper than N
 @app.get('/menu/filter/{N}', summary='5️⃣ Dishes cheaper than N💸', tags=['for user'])
 def filter_menu(N: int):
     res = dict(filter(lambda item: item[1] < N, menu.items()))
     return res if res else {'msg': f'No dishes cheaper than {N}'}
 
-# 7. Cheapest and most expensive dishes
+# 6. Cheapest and most expensive dishes
 @app.get('/menu/cheap_expensive', summary='6️⃣ Cheapest and most expensive💰', tags=['for user'])
 def get_the_cheaper_and_expensive():
     if not menu:
@@ -64,14 +64,14 @@ def get_the_cheaper_and_expensive():
         'most_expensive': {'name': expensive[0], 'price': expensive[1]}
     }
 
-# 8. Drinks only
+# 7. Drinks only
 drinks = [drink for drink, price in menu.items() if drink in ['coffee', 'tea', 'juice']]
 drinks = sorted(drinks, key=lambda x: menu[x])
 @app.get('/menu/drinks', summary='7️⃣ Only drinks☕🥤', tags=['for user'])
 def return_drinks():
     return drinks
 
-# 9-12. Make order for user num
+# 8. Make order for user num
 @app.post('/menu/order/{num}', summary='8️⃣ Make order🛒', tags=['for user'])
 def make_order(num: int, dishes: str):
     """
@@ -95,7 +95,9 @@ def make_order(num: int, dishes: str):
         total_discounted = total
         discount_msg = ""
 
+    # красиво выводим
     result = '\n'.join(map(lambda x: f"{x[0]+1}. {x[1][0]} — {x[1][1]} руб.", enumerate(order_dict.items())))
+    
     return {
         'order': result,
         'total': total,
